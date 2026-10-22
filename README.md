@@ -12,32 +12,27 @@ This project explores how AI can support these workflows using evidence-based an
 
 ## Architecture
 
-```text
-Customer / Support UI
-          |
-          v
-     FastAPI Backend
-          |
-          v
-   Query Understanding
-          |
-    +-----+------+
-    |            |
-    v            v
-Knowledge      Order
-Retrieval      Service
-    |            |
-    +-----+------+
-          |
-          v
-    Context Builder
-          |
-          v
-    LLM Generation
-          |
-          v
-  Answer + Sources
+
+```mermaid
+flowchart TD
+    A["Customer / Support UI"] --> B["FastAPI Backend"]
+    B --> C["Query Understanding"]
+    C --> D["Knowledge Retrieval"]
+    C --> E["Order Service"]
+    D --> F["Context Builder"]
+    E --> F
+    F --> G["LLM Generation"]
+    G --> H["Grounded Answer + Sources"]
+
+    D --- I[("Policies / FAQs / Products")]
+    E --- J[("Mock Order Data")]
+
+    classDef data fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+    classDef ai fill:#dcfce7,stroke:#16a34a,color:#14532d
+    class I,J data
+    class D,F,G ai
 ```
+
 
 The current implementation includes semantic retrieval and the FastAPI search endpoint. LLM generation and order-aware workflows are not yet implemented.
 
