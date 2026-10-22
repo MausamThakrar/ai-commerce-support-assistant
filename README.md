@@ -1,512 +1,184 @@
-# AI Commerce Product Discovery
+# AI Commerce Support Assistant
 
-A conversational ecommerce product discovery system combining semantic retrieval, keyword search, deterministic commerce rules, conversational refinement, catalog adapters, and merchant configuration.
+An AI-powered ecommerce customer support system designed around **Retrieval-Augmented Generation (RAG), semantic search, LLM tool calling, and order-aware support workflows**.
 
-[**Live demo**](https://ai-commerce-product-discovery.vercel.app) · [**Merchant tools**](https://ai-commerce-product-discovery.vercel.app/merchant) · [**API docs**](https://ai-commerce-product-discovery-api-1017209097381.europe-west3.run.app/docs)
+The project focuses on building a reliable, scalable support assistant that answers customer questions using store knowledge and structured ecommerce data, with emphasis on accuracy, traceability, and real-world reliability.
 
-![CI](https://github.com/MausamThakrar/ai-commerce-product-discovery/actions/workflows/ci.yml/badge.svg)
+## Overview
 
----
+Ecommerce support involves more than answering FAQs. Customer questions often require interpreting store policies, checking order information, understanding fulfillment states, and handling ambiguous or incomplete requests.
 
-## Demo
+This project explores how AI can automate these workflows through knowledge retrieval, grounded response generation, controlled tool execution, and systematic evaluation.
 
-### Product discovery
+The initial implementation provides semantic retrieval over a fictional ecommerce knowledge base.
 
-![Product discovery](docs/screenshots/discovery.png)
-
-### Conversational refinement and comparison
-
-![Conversational comparison](docs/screenshots/conversation-comparison.png)
-
-### Conversational cart
-
-![Cart](docs/screenshots/cart.png)
-
-### Merchant tools
-
-![Merchant tools](docs/screenshots/merchant-tools.png)
-
----
-
-## What it does
-
-Instead of relying only on keywords and filters, shoppers can describe what they need in natural language.
-
-For example:
-
-```text
-waterproof hiking shoes under €200
-```
-
-The application extracts structured shopping intent, retrieves relevant products, applies hard ecommerce constraints, and returns eligible results.
-
-The shopper can then continue with the same context:
-
-```text
-only black ones
-which is cheapest?
-compare the first two
-add the cheapest one to cart
-```
-
-The system supports:
-
-- natural-language product search
-- TF-IDF keyword retrieval
-- semantic retrieval using sentence embeddings
-- hybrid keyword + semantic ranking
-- structured shopping-intent extraction
-- price, category, brand, color and attribute constraints
-- ambiguity detection and clarification
-- conversational search refinement
-- cheapest / most expensive queries
-- ordinal product references
-- structured product comparison
-- conversational add-to-cart actions
-- runtime catalog replacement
-- merchant-controlled search configuration
-
-Commerce operations such as price limits, availability, comparisons and cart selection are handled deterministically rather than relying on generated answers.
-
----
-
-## Application architecture
+## Architecture
 
 ```mermaid
-flowchart TB
-    A[Shopper] --> B[Next.js Storefront]
+flowchart TD
+    A["Customer / Support UI"] --> B["FastAPI Backend"]
+    B --> C["Query Understanding"]
 
-    B --> C[Search UI]
-    B --> D[Conversation UI]
+    C --> D["Knowledge Retrieval"]
+    C --> E["Order Service"]
 
-    C --> E[FastAPI]
-    D --> E
+    I[("Policies / FAQs / Products")] --> D
+    J[("Order & Fulfillment Data")] --> E
 
-    E --> F[Shopping Intent]
-    E --> G[Conversation Service]
+    D --> F["Context Builder"]
+    E --> F
 
-    G --> H[Context]
-    G --> I[Actions]
+    F --> G["LLM Generation"]
+    G --> H["Grounded Answer + Sources"]
 
-    I --> J[Refine]
-    I --> K[Compare]
-    I --> L[Cart]
+    classDef retrieval fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
+    classDef generation fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef storage fill:#f3f4f6,stroke:#6b7280,color:#111827
 
-    M[TF-IDF Keyword Search] --> N[Hybrid Retrieval]
-    O[Semantic Embeddings] --> N
-
-    F --> P[Commerce Search]
-    N --> P
-
-    P --> Q[Hard Commerce Constraints]
-    Q --> R[Ranked Products]
-
-    R --> B
+    class D,E retrieval
+    class F,G generation
+    class I,J storage
 ```
 
-The retrieval layer decides how relevant a product is.
+The diagram represents the target architecture. Currently, document ingestion, embedding generation, semantic retrieval, and the FastAPI search endpoint are implemented.
 
-Commerce constraints decide whether the product is eligible to appear at all.
+## Technology Stack
 
-For example, a semantically relevant €180 product cannot appear when the shopper explicitly asks for products under €120.
+| Component | Technology |
+|---|---|
+| Backend | Python, FastAPI |
+| Embeddings | Sentence Transformers |
+| Embedding Model | all-MiniLM-L6-v2 |
+| Similarity Search | NumPy, cosine similarity |
+| Knowledge Base | Markdown documents |
+| API Validation | Pydantic / FastAPI |
+| Testing | Pytest |
+| LLM Integration | OpenAI Responses API (planned) |
+| Frontend | Next.js, React, TypeScript (planned) |
+| Deployment | Google Cloud Run, Vercel (planned) |
 
----
+## Features
 
-## Search and shopping intent
+### Semantic Knowledge Retrieval
 
-A query such as:
+Ecommerce knowledge documents are divided into searchable sections using Markdown headings.
 
-```text
-black waterproof hiking shoes under €120
+Each section is transformed into a normalized 384-dimensional vector embedding using `all-MiniLM-L6-v2`. Customer queries are embedded using the same model, and relevant sections are ranked through cosine similarity.
+
+Results include the source document, section heading, knowledge chunk identifier, retrieved content, and similarity score.
+
+### Ecommerce Knowledge Base
+
+The initial dataset represents **Northstar Goods**, a fictional outdoor equipment retailer.
+
+It contains shipping policies, return and refund rules, cancellation conditions, product specifications, warranties, and frequently asked questions.
+
+All products, store policies, and business information are fictional demonstration data.
+
+### Search API
+
+**GET `/support/search`**
+
+Example request:
+
+```http
+GET /support/search?q=How%20much%20does%20express%20shipping%20cost%3F&top_k=3
 ```
 
-can be interpreted as:
+Example response (showing the highest-ranked result):
 
 ```json
 {
-  "category": "trail-shoes",
-  "brand": null,
-  "min_price": null,
-  "max_price": 120,
-  "color": "black",
-  "waterproof": true,
-  "lightweight": null,
-  "in_stock": null
+  "query": "How much does express shipping cost?",
+  "results": [
+    {
+      "id": "shipping-3",
+      "source": "shipping.md",
+      "heading": "Express Shipping",
+      "text": "Express Shipping\nExpress shipping costs €9.90.\nEstimated delivery is 1–2 business days after dispatch.",
+      "score": 0.7877
+    }
+  ]
 }
 ```
 
-The system also detects ambiguity.
+The endpoint returns up to three results by default, configurable through `top_k`.
 
-For example:
+Similarity scores represent embedding similarity, not calibrated confidence probabilities.
 
-```text
-something light for walking through wet mountains
-```
+### Automated Testing
 
-suggests properties such as:
+The current implementation includes nine passing tests covering API health, semantic retrieval, empty-query behavior, result limits, and source metadata.
 
-```text
-lightweight = true
-waterproof = true
-```
+All five initial retrieval test questions returned the expected knowledge section at rank one. These tests establish a baseline but do not constitute a comprehensive retrieval benchmark.
 
-but does not clearly identify whether the shopper wants footwear, clothing, a backpack, or camping equipment.
+## Local Development
 
-In that case, the application requests clarification rather than returning an arbitrary semantic match.
+### Prerequisites
 
----
+- Python and pip
+- Git
 
-## Hybrid retrieval
-
-Keyword retrieval uses TF-IDF with unigram and bigram features.
-
-Semantic retrieval uses:
-
-```text
-sentence-transformers/all-MiniLM-L6-v2
-```
-
-Product embeddings include information such as title, description, category, brand, tags and structured attributes.
-
-The two retrieval signals are normalized and combined.
-
-Default weighting:
-
-```text
-Semantic: 65%
-Keyword:  35%
-```
-
-Merchants can change these weights at runtime.
-
----
-
-## Catalog architecture
-
-The discovery engine operates on a common internal product model rather than depending directly on a specific ecommerce platform.
-
-```mermaid
-flowchart TB
-    A[Generic JSON]
-    B[Generic CSV]
-    C[Shopify-style Data]
-
-    A --> D[Catalog Adapters]
-    B --> D
-    C --> D
-
-    D --> E[Common Product Model]
-    E --> F[CommerceRuntime]
-
-    F --> G[Keyword Index]
-    F --> H[Semantic Embeddings]
-
-    G --> I[Search Services]
-    H --> I
-
-    I --> J[Commerce Search]
-    I --> K[Conversation Service]
-```
-
-Currently supported catalog inputs:
-
-- Generic JSON
-- Generic CSV
-- Shopify-style JSON
-
-Additional platforms can be supported by adding adapters that convert their product data into the common internal model.
-
-The core retrieval and commerce logic does not need to change.
-
----
-
-## Runtime catalog management
-
-When a merchant imports a new catalog, the application rebuilds the product-dependent runtime.
-
-```mermaid
-flowchart LR
-    A[Catalog Import] --> B[Adapter]
-    B --> C[Common Product Model]
-    C --> D[CommerceRuntime]
-
-    D --> E[Keyword Index]
-    D --> F[Semantic Embeddings]
-
-    E --> G[Hybrid Search]
-    F --> G
-
-    G --> H[Commerce Search]
-    H --> I[Conversation Service]
-```
-
-The newly imported catalog becomes searchable immediately without restarting FastAPI.
-
-The bundled demo catalog can also be restored from the merchant interface.
-
----
-
-## Merchant tools
-
-The merchant interface is available at:
-
-https://ai-commerce-product-discovery.vercel.app/merchant
-
-It provides:
-
-- active catalog source
-- product and inventory statistics
-- category and brand overview
-- JSON catalog import
-- CSV catalog import
-- Shopify-style catalog import
-- demo catalog restoration
-- maximum recommendation configuration
-- semantic / keyword weighting
-- unavailable-product visibility control
-
-Search-weight updates do not rebuild the embedding index.
-
-Catalog replacements do rebuild the services that depend on product data.
-
----
-
-## API
-
-The backend is built with FastAPI.
-
-Interactive documentation:
-
-https://ai-commerce-product-discovery-api-1017209097381.europe-west3.run.app/docs
-
-Main endpoints:
-
-| Endpoint | Purpose |
-|---|---|
-| `GET /health` | Application and catalog health |
-| `GET /products` | Current runtime products |
-| `GET /search` | Keyword retrieval |
-| `GET /search/semantic` | Semantic retrieval |
-| `GET /search/commerce` | Intent-aware commerce search |
-| `POST /conversation` | Conversational shopping |
-| `GET /merchant/catalog` | Catalog status |
-| `POST /merchant/catalog/import` | Replace runtime catalog |
-| `POST /merchant/catalog/reset` | Restore demo catalog |
-| `GET /merchant/settings` | Read search configuration |
-| `PUT /merchant/settings` | Update search configuration |
-
----
-
-## Demo catalog
-
-The bundled deterministic catalog contains 120 synthetic ecommerce products across:
-
-```text
-trail-shoes
-hiking-jackets
-backpacks
-camping
-```
-
-Example import catalogs are included under:
-
-```text
-backend/data/import_examples/
-```
-
-```text
-generic-products.json
-generic-products.csv
-shopify-products.json
-```
-
----
-
-## Deployment
-
-```mermaid
-flowchart TB
-    A[GitHub Repository]
-
-    A --> B[GitHub Actions]
-    A --> C[Vercel]
-
-    C --> D[Next.js Storefront]
-
-    E[gcloud builds submit] --> F[Google Cloud Build]
-    F --> G[Artifact Registry]
-    G --> H[Google Cloud Run]
-    H --> I[FastAPI API]
-
-    D -->|API requests| I
-```
-
-### Frontend
-
-Hosted on Vercel:
-
-https://ai-commerce-product-discovery.vercel.app
-
-### Backend
-
-Hosted on Google Cloud Run.
-
-The backend container is built with Google Cloud Build and stored in Google Artifact Registry.
-
-The Cloud Run service is configured to scale to zero when idle.
-
----
-
-## Running locally
-
-### Docker
-
-The simplest way to run the complete application:
+### Installation
 
 ```bash
-docker compose build
-docker compose up
-```
+git clone https://github.com/mausamthakrar/ai-commerce-support-assistant.git
+cd ai-commerce-support-assistant
 
-Then open:
-
-```text
-Storefront
-http://localhost:3000
-
-Merchant tools
-http://localhost:3000/merchant
-
-API docs
-http://localhost:8000/docs
-```
-
-Stop the application with:
-
-```bash
-docker compose down
-```
-
-### Without Docker
-
-Backend:
-
-```bash
-python3.12 -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
+
 pip install -r requirements.txt
-
-cd backend
-uvicorn app.main:app --reload
 ```
 
-Frontend:
+### Start the API
 
 ```bash
-cd frontend
-npm install
-npm run dev
+python -m uvicorn app.main:app --reload
 ```
 
-The frontend expects:
+API documentation: `http://127.0.0.1:8000/docs`
 
-```env
-NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
-```
+Health endpoint: `http://127.0.0.1:8000/health`
 
----
-
-## Tests and CI
-
-Backend:
+### Run Tests
 
 ```bash
-cd backend
-python -m pytest
+python -m pytest -v
 ```
 
-Current result:
-
-```text
-24 passed
-```
-
-The tests cover retrieval, commerce filtering, intent parsing, ambiguity handling, conversation flows, product comparison, cart selection, catalog adapters, runtime replacement and search configuration.
-
-Frontend checks:
+To fail tests on Python runtime warnings:
 
 ```bash
-cd frontend
-npm run lint
-npm run build
+python -m pytest -W error::RuntimeWarning -v
 ```
 
-GitHub Actions runs backend tests, frontend linting and the Next.js production build on pushes to `main` and pull requests.
+## Reliability & Evaluation
 
----
+The project places particular emphasis on validating AI behavior beyond straightforward FAQ responses.
 
-## Technology
+The evaluation scope includes ambiguous customer questions, multiple simultaneous intents, missing or incorrect order information, conflicting policies, partially fulfilled orders, unauthorized data access, prompt injection, and external service failures.
 
-| Area | Technology |
-|---|---|
-| Backend | Python 3.12, FastAPI, Pydantic |
-| Retrieval | scikit-learn, sentence-transformers, NumPy |
-| Frontend | Next.js, React, TypeScript |
-| Testing | pytest, ESLint, Next.js production build |
-| Containers | Docker, Docker Compose |
-| CI | GitHub Actions |
-| Backend deployment | Google Cloud Build, Artifact Registry, Cloud Run |
-| Frontend deployment | Vercel |
+The intended behavior is to rely on verified evidence, avoid fabricated information, preserve customer data boundaries, and use controlled fallbacks when an answer cannot be established.
 
----
+These scenarios will be developed into automated evaluation datasets as the assistant gains its LLM and order-aware capabilities.
 
-## Design decisions
+## Scalability
 
-### Separate relevance from commerce eligibility
+The initial retrieval implementation uses in-memory embeddings and a small Markdown knowledge base.
 
-Semantic relevance never overrides explicit shopper constraints such as price, inventory or product attributes.
+The system will also be tested against substantially larger document collections and files, with emphasis on token-aware chunking, persistent vector indexing, incremental ingestion, document freshness, retrieval quality, and performance under load.
 
-### Use deterministic logic for deterministic commerce operations
+## Engineering Focus
 
-Search constraints, comparison, ordinal references and cart selection are handled with structured logic.
+This project demonstrates practical AI engineering applied to ecommerce workflows, particularly:
 
-### Keep the discovery engine platform-independent
+- Retrieval-Augmented Generation and semantic search
+- LLM integration and context engineering
+- Controlled tool calling and ecommerce service integration
+- Evidence-based response generation
+- AI security and reliability testing
+- Backend API development
+- Retrieval evaluation and scalable data processing
 
-External catalog formats are converted into a shared internal product model through adapters.
-
-### Rebuild only what changed
-
-Catalog replacement rebuilds product-dependent search services.
-
-Ranking configuration changes do not recreate semantic embeddings.
-
----
-
-## Current scope
-
-This project is a portfolio implementation rather than a production commerce platform.
-
-The current version intentionally does not include:
-
-- persistent database storage
-- user or merchant authentication
-- production checkout
-- persistent server-side carts
-- live Shopify OAuth
-- continuous Shopify catalog synchronization
-- webhooks
-- background indexing workers
-- distributed vector-search infrastructure
-- production monitoring and alerting
-
-Catalog imports and merchant settings currently live in application memory and reset when the Cloud Run instance restarts.
-
----
-
-## Project status
-
-**Portfolio release complete.**
-
-The current release demonstrates the complete flow from natural-language shopping intent through hybrid retrieval, commerce filtering, conversational interaction, catalog integration, merchant configuration, testing, CI and public deployment.
-
-Further platform integrations can build on the adapter and runtime architecture without changing the core discovery engine.
+The long-term objective is an adaptable AI support architecture for real ecommerce environments, including potential Shopify integrations.
