@@ -1,128 +1,171 @@
 # AI Commerce Support Assistant
 
-An AI-powered ecommerce customer support system designed around **Retrieval-Augmented Generation (RAG), semantic search, LLM tool calling, and order-aware support workflows**.
+A local-first, RAG-powered ecommerce support assistant built with **FastAPI, Ollama, semantic retrieval, and evidence-based answer validation**.
 
-The project focuses on building a reliable, scalable support assistant that answers customer questions using store knowledge and structured ecommerce data, with emphasis on accuracy, traceability, and real-world reliability.
+The system retrieves relevant store knowledge, generates structured responses using a local language model, and validates supporting claims before returning customer-facing answers with source references.
 
 ## Overview
 
-Ecommerce support involves more than answering FAQs. Customer questions often require interpreting store policies, checking order information, understanding fulfillment states, and handling ambiguous or incomplete requests.
+Ecommerce support requires more than retrieving FAQ answers. Customer questions often involve store policies, exceptions, incomplete information, and decisions that depend on verified business data.
 
-This project explores how AI can automate these workflows through knowledge retrieval, grounded response generation, controlled tool execution, and systematic evaluation.
+This project explores a modular approach to AI-powered support, emphasizing grounded responses, source traceability, controlled fallbacks, and automated reliability testing.
 
-The initial implementation provides semantic retrieval over a fictional ecommerce knowledge base.
+The current implementation operates locally using a fictional ecommerce knowledge base and an Ollama-hosted language model.
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-    A["Customer / Support UI"] --> B["FastAPI Backend"]
-    B --> C["Query Understanding"]
+    A["Customer Question"] --> B["FastAPI Backend"]
+    B --> C{"Order-Specific Query?"}
 
-    C --> D["Knowledge Retrieval"]
-    C --> E["Order Service"]
+    C -->|Yes| D["Safe Order Fallback"]
+    C -->|No| E["Semantic Retrieval"]
 
-    I[("Policies / FAQs / Products")] --> D
-    J[("Order & Fulfillment Data")] --> E
+    K[("Store Policies / FAQs / Products")] --> E
+    E --> F["Context Builder"]
+    F --> G["Ollama / Qwen3 Instruct"]
+    G --> H["Structured Claims + Source IDs"]
+    H --> I["Evidence Verification"]
+    I --> J["Grounding Guardrails"]
+    J --> L["Answer + Citations"]
 
-    D --> F["Context Builder"]
-    E --> F
+    classDef api fill:#dbeafe,stroke:#2563eb,color:#1e40af
+    classDef model fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef validation fill:#fef3c7,stroke:#d97706,color:#92400e
+    classDef data fill:#f3f4f6,stroke:#6b7280,color:#111827
 
-    F --> G["LLM Generation"]
-    G --> H["Grounded Answer + Sources"]
-
-    classDef retrieval fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
-    classDef generation fill:#dcfce7,stroke:#16a34a,color:#14532d
-    classDef storage fill:#f3f4f6,stroke:#6b7280,color:#111827
-
-    class D,E retrieval
-    class F,G generation
-    class I,J storage
+    class B,C,E,F api
+    class G,H model
+    class I,J validation
+    class K data
 ```
 
-The diagram represents the target architecture. Currently, document ingestion, embedding generation, semantic retrieval, and the FastAPI search endpoint are implemented.
+Order-specific requests currently return a controlled fallback. Authenticated order lookups and ecommerce tool calling are not yet implemented.
 
 ## Technology Stack
 
 | Component | Technology |
 |---|---|
 | Backend | Python, FastAPI |
+| Local LLM | Ollama, Qwen3 4B Instruct |
 | Embeddings | Sentence Transformers |
 | Embedding Model | all-MiniLM-L6-v2 |
 | Similarity Search | NumPy, cosine similarity |
 | Knowledge Base | Markdown documents |
-| API Validation | Pydantic / FastAPI |
+| Structured Generation | JSON Schema |
+| Evidence Validation | Extractive claim verification |
+| HTTP Client | HTTPX |
 | Testing | Pytest |
-| LLM Integration | OpenAI Responses API (planned) |
-| Frontend | Next.js, React, TypeScript (planned) |
-| Deployment | Google Cloud Run, Vercel (planned) |
+
+Local inference does not require a paid LLM API. Public deployment and remote inference are not included in the current implementation.
 
 ## Features
 
 ### Semantic Knowledge Retrieval
 
-Ecommerce knowledge documents are divided into searchable sections using Markdown headings.
+Store knowledge is divided into sections using Markdown headings and converted into normalized 384-dimensional embeddings.
 
-Each section is transformed into a normalized 384-dimensional vector embedding using `all-MiniLM-L6-v2`. Customer queries are embedded using the same model, and relevant sections are ranked through cosine similarity.
+Customer queries are embedded using the same model, and knowledge sections are ranked by cosine similarity.
 
-Results include the source document, section heading, knowledge chunk identifier, retrieved content, and similarity score.
+Each retrieval result includes its source document, section heading, chunk identifier, content, and similarity score.
+
+### Local RAG Answer Generation
+
+The assistant uses Ollama with `qwen3:4b-instruct` to generate answers from retrieved store knowledge.
+
+Generation uses structured JSON containing an answer, individual factual claims, and source IDs.
+
+The application handles unsupported questions through an explicit `insufficient_evidence` response.
+
+### Evidence-Based Answer Validation
+
+Generated claims are checked against their referenced knowledge sections before being included in the customer-facing response.
+
+The current validation pipeline includes:
+
+- JSON structure validation
+- Source ID validation
+- Extractive evidence matching
+- Automatic citation generation
+- Guardrails against selected unsupported commitments
+- Controlled fallbacks when verification fails
+
+Customer-facing answers are constructed from verified claims rather than directly returning the model's unrestricted answer.
+
+Extractive verification is intentionally conservative. It does not establish full semantic entailment, resolve conflicting policies, or guarantee that every response is complete.
 
 ### Ecommerce Knowledge Base
 
 The initial dataset represents **Northstar Goods**, a fictional outdoor equipment retailer.
 
-It contains shipping policies, return and refund rules, cancellation conditions, product specifications, warranties, and frequently asked questions.
+It includes shipping, returns, refunds, cancellations, product specifications, warranties, and FAQs.
 
-All products, store policies, and business information are fictional demonstration data.
+All store information is demonstration data.
 
-### Search API
+### API Endpoints
 
 **GET `/support/search`**
 
-Example request:
+Returns semantically ranked knowledge sections.
+
+Example:
 
 ```http
 GET /support/search?q=How%20much%20does%20express%20shipping%20cost%3F&top_k=3
 ```
 
-Example response (showing the highest-ranked result):
+**POST `/support/ask`**
+
+Retrieves supporting context and returns a grounded response.
+
+Request:
 
 ```json
 {
-  "query": "How much does express shipping cost?",
-  "results": [
+  "question": "How much does express shipping cost?"
+}
+```
+
+Response:
+
+```json
+{
+  "answer": "Express shipping costs €9.90. [shipping-3]",
+  "sources": [
     {
       "id": "shipping-3",
       "source": "shipping.md",
       "heading": "Express Shipping",
-      "text": "Express Shipping\nExpress shipping costs €9.90.\nEstimated delivery is 1–2 business days after dispatch.",
       "score": 0.7877
     }
   ]
 }
 ```
 
-The endpoint returns up to three results by default, configurable through `top_k`.
+Source IDs identify the knowledge sections used to construct the answer. Similarity scores are retrieval metrics, not calibrated factual-confidence probabilities.
 
-Similarity scores represent embedding similarity, not calibrated confidence probabilities.
+### Order Query Routing
 
-### Automated Testing
+The API detects selected order-specific questions and prevents the knowledge-only assistant from inventing order status or tracking information.
 
-The current implementation includes nine passing tests covering API health, semantic retrieval, empty-query behavior, result limits, and source metadata.
+Order data access is not yet implemented, so these requests return a controlled fallback.
 
-All five initial retrieval test questions returned the expected knowledge section at rank one. These tests establish a baseline but do not constitute a comprehensive retrieval benchmark.
+## Getting Started
 
-## Local Development
-
-### Prerequisites
+### Requirements
 
 - Python and pip
 - Git
+- Ollama
+- `qwen3:4b-instruct` model
 
 ### Installation
 
+Clone the repository:
+
 ```bash
-git clone https://github.com/mausamthakrar/ai-commerce-support-assistant.git
+git clone https://github.com/MausamThakrar/ai-commerce-support-assistant.git
 cd ai-commerce-support-assistant
 
 python3 -m venv .venv
@@ -131,7 +174,28 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Start the API
+Install [Ollama](https://ollama.com/download) and download the language model:
+
+```bash
+ollama pull qwen3:4b-instruct
+```
+
+Make sure Ollama is running.
+
+Create the environment configuration:
+
+```bash
+cp .env.example .env
+```
+
+Configuration:
+
+```dotenv
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=qwen3:4b-instruct
+```
+
+### Run the API
 
 ```bash
 python -m uvicorn app.main:app --reload
@@ -147,38 +211,51 @@ Health endpoint: `http://127.0.0.1:8000/health`
 python -m pytest -v
 ```
 
-To fail tests on Python runtime warnings:
+The current test suite contains **52 passing tests** covering retrieval, routing, structured generation, citation handling, evidence verification, and selected grounding and error-handling scenarios.
+
+The repository also includes a manual real-model evaluation script:
 
 ```bash
-python -m pytest -W error::RuntimeWarning -v
+python tests/manual_rag_evaluation.py
 ```
+
+It exercises six representative customer questions against the running FastAPI and Ollama services and records response latency.
 
 ## Reliability & Evaluation
 
-The project places particular emphasis on validating AI behavior beyond straightforward FAQ responses.
+The system is designed to prioritize evidence-based responses over unsupported assertions.
 
-The evaluation scope includes ambiguous customer questions, multiple simultaneous intents, missing or incorrect order information, conflicting policies, partially fulfilled orders, unauthorized data access, prompt injection, and external service failures.
+Current validation covers malformed model output, invalid source references, missing evidence, selected unsupported refund commitments, and unknown order requests.
 
-The intended behavior is to rely on verified evidence, avoid fabricated information, preserve customer data boundaries, and use controlled fallbacks when an answer cannot be established.
+Further reliability work focuses on:
 
-These scenarios will be developed into automated evaluation datasets as the assistant gains its LLM and order-aware capabilities.
+- Multi-turn customer conversations
+- Conflicting and outdated policies
+- Prompt injection and adversarial inputs
+- Customer authorization and order-data isolation
+- Partial fulfillments, cancellations, and refunds
+- Semantic claim verification
+- Large-scale retrieval accuracy and latency
+- Controlled failures and service availability
+
+The existing test results demonstrate the implemented behaviors, not production readiness.
 
 ## Scalability
 
-The initial retrieval implementation uses in-memory embeddings and a small Markdown knowledge base.
+The current knowledge base contains five Markdown documents and 36 indexed knowledge sections. Embeddings are held in memory.
 
-The system will also be tested against substantially larger document collections and files, with emphasis on token-aware chunking, persistent vector indexing, incremental ingestion, document freshness, retrieval quality, and performance under load.
+The retrieval architecture will be evaluated against much larger document collections, including large individual files, with attention to token-aware chunking, persistent indexing, incremental updates, document versioning, and retrieval performance.
 
 ## Engineering Focus
 
-This project demonstrates practical AI engineering applied to ecommerce workflows, particularly:
+- Retrieval-Augmented Generation
+- Local LLM inference
+- Semantic search and embeddings
+- Structured output and context engineering
+- Claim-level source traceability
+- Evidence verification and AI guardrails
+- FastAPI backend development
+- Automated testing and real-model evaluation
+- Ecommerce support workflow design
 
-- Retrieval-Augmented Generation and semantic search
-- LLM integration and context engineering
-- Controlled tool calling and ecommerce service integration
-- Evidence-based response generation
-- AI security and reliability testing
-- Backend API development
-- Retrieval evaluation and scalable data processing
-
-The long-term objective is an adaptable AI support architecture for real ecommerce environments, including potential Shopify integrations.
+The broader objective is a reliable, extensible AI support architecture that can be connected to real ecommerce systems, including Shopify.
