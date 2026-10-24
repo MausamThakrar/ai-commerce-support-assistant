@@ -1,11 +1,32 @@
 
-from fastapi import FastAPI
+from functools import lru_cache
+
+from fastapi import FastAPI, HTTPException, Query
+from pydantic import BaseModel, Field
+
+from app.retrieval import KnowledgeRetriever
+from app.rag import RAGService
+
 
 app = FastAPI(
     title="AI Commerce Support Assistant",
-    version="0.1.0",
+    version="0.2.0",
     description="RAG-powered ecommerce customer support API",
 )
+
+
+class SupportQuestion(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+
+
+@lru_cache
+def get_retriever() -> KnowledgeRetriever:
+    return KnowledgeRetriever()
+
+
+@lru_cache
+def get_rag_service() -> RAGService:
+    return RAGService(retriever=get_retriever())
 
 
 @app.get("/")
@@ -21,17 +42,6 @@ def health():
     return {"status": "ok"}
 
 
-from functools import lru_cache
-
-from fastapi import HTTPException, Query
-from app.retrieval import KnowledgeRetriever
-
-
-@lru_cache
-def get_retriever() -> KnowledgeRetriever:
-    return KnowledgeRetriever()
-
-
 @app.get("/support/search")
 def search_knowledge(
     q: str = Query(min_length=1),
@@ -42,3 +52,8 @@ def search_knowledge(
         return {"query": q, "results": results}
     except ValueError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.post("/support/ask")
+def ask_support(request: SupportQuestion):
+    return get_rag_service().answer(request.question)
