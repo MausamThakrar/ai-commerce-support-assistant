@@ -1,47 +1,58 @@
 # AI Commerce Support Assistant
 
-A local-first, RAG-powered ecommerce support assistant built with **FastAPI, Ollama, semantic retrieval, and evidence-based answer validation**.
+A local-first, AI-powered ecommerce support assistant built with **FastAPI, Ollama, semantic retrieval, and authenticated order workflows**.
 
-The system retrieves relevant store knowledge, generates structured responses using a local language model, and validates supporting claims before returning customer-facing answers with source references.
+The system combines Retrieval-Augmented Generation (RAG) with structured ecommerce data to answer customer questions about store policies, products, orders, fulfillment, and cancellations. It emphasizes source-grounded answers, customer data isolation, and controlled execution of read-only operations.
 
 ## Overview
 
-Ecommerce support requires more than retrieving FAQ answers. Customer questions often involve store policies, exceptions, incomplete information, and decisions that depend on verified business data.
+Ecommerce support involves more than answering FAQs. Customer questions may require interpreting store policies, retrieving order information, handling partial fulfillments, and maintaining context across conversations.
 
-This project explores a modular approach to AI-powered support, emphasizing grounded responses, source traceability, controlled fallbacks, and automated reliability testing.
+This project explores a modular approach to these workflows, combining local LLM inference, evidence validation, backend-controlled order access, and automated reliability testing.
 
-The current implementation operates locally using a fictional ecommerce knowledge base and an Ollama-hosted language model.
+The implementation uses a fictional ecommerce store and runs locally without requiring a paid LLM API.
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-    A["Customer Question"] --> B["FastAPI Backend"]
-    B --> C{"Order-Specific Query?"}
+    A["Customer Request"] --> B["FastAPI Backend"]
+    B --> C{"Support Workflow"}
 
-    C -->|Yes| D["Safe Order Fallback"]
-    C -->|No| E["Semantic Retrieval"]
+    C -->|Knowledge Question| D["Semantic Retrieval"]
+    K[("Store Knowledge Base")] --> D
+    D --> E["Ollama / Qwen3 Instruct"]
+    E --> F["Structured Claims"]
+    F --> G["Evidence Verification"]
+    G --> H["Grounded Answer + Citations"]
 
-    K[("Store Policies / FAQs / Products")] --> E
-    E --> F["Context Builder"]
-    F --> G["Ollama / Qwen3 Instruct"]
-    G --> H["Structured Claims + Source IDs"]
-    H --> I["Evidence Verification"]
-    I --> J["Grounding Guardrails"]
-    J --> L["Answer + Citations"]
+    C -->|Order Question| I["Development Authentication"]
+    I --> J["Customer Ownership Check"]
+    J --> L[("Mock Order Data")]
+    L --> M["Validated Order Facts"]
+    M --> N["Order Response"]
+
+    C -->|Cancellation Question| O["Authorized Order Lookup"]
+    O --> P["Cancellation Policy Rules"]
+    K --> P
+    P --> Q["Policy-Grounded Response"]
+
+    C -->|Multi-Turn Question| R["Conversation Context"]
+    R --> S["Order Reauthorization"]
+    S --> O
 
     classDef api fill:#dbeafe,stroke:#2563eb,color:#1e40af
-    classDef model fill:#dcfce7,stroke:#16a34a,color:#14532d
-    classDef validation fill:#fef3c7,stroke:#d97706,color:#92400e
+    classDef ai fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef security fill:#fef3c7,stroke:#d97706,color:#92400e
     classDef data fill:#f3f4f6,stroke:#6b7280,color:#111827
 
-    class B,C,E,F api
-    class G,H model
-    class I,J validation
-    class K data
+    class B,C,D,R api
+    class E,F,G ai
+    class I,J,O,P,S security
+    class K,L data
 ```
 
-Order-specific requests currently return a controlled fallback. Authenticated order lookups and ecommerce tool calling are not yet implemented.
+Knowledge questions use RAG with extractive claim validation. Order-specific questions use authenticated, read-only tools and deterministic response generation. Cancellation questions combine verified order information with cited store policies.
 
 ## Technology Stack
 
@@ -49,16 +60,16 @@ Order-specific requests currently return a controlled fallback. Authenticated or
 |---|---|
 | Backend | Python, FastAPI |
 | Local LLM | Ollama, Qwen3 4B Instruct |
-| Embeddings | Sentence Transformers |
-| Embedding Model | all-MiniLM-L6-v2 |
+| Embeddings | Sentence Transformers, all-MiniLM-L6-v2 |
 | Similarity Search | NumPy, cosine similarity |
 | Knowledge Base | Markdown documents |
+| Order Data | Structured JSON |
 | Structured Generation | JSON Schema |
 | Evidence Validation | Extractive claim verification |
+| Authentication | Development-only session tokens |
+| Conversation Context | In-memory, customer-scoped store |
 | HTTP Client | HTTPX |
 | Testing | Pytest |
-
-Local inference does not require a paid LLM API. Public deployment and remote inference are not included in the current implementation.
 
 ## Features
 
@@ -66,60 +77,74 @@ Local inference does not require a paid LLM API. Public deployment and remote in
 
 Store knowledge is divided into sections using Markdown headings and converted into normalized 384-dimensional embeddings.
 
-Customer queries are embedded using the same model, and knowledge sections are ranked by cosine similarity.
+Customer queries are embedded using the same model, and relevant sections are ranked by cosine similarity.
 
-Each retrieval result includes its source document, section heading, chunk identifier, content, and similarity score.
+Retrieval results include the source document, section heading, chunk identifier, text, and similarity score.
 
 ### Local RAG Answer Generation
 
-The assistant uses Ollama with `qwen3:4b-instruct` to generate answers from retrieved store knowledge.
+The assistant uses Ollama with `qwen3:4b-instruct` to answer questions using retrieved knowledge.
 
-Generation uses structured JSON containing an answer, individual factual claims, and source IDs.
+Generation produces structured claims and source references. The backend validates the output and constructs customer-facing answers from extractively verified claims.
 
-The application handles unsupported questions through an explicit `insufficient_evidence` response.
+Unsupported questions receive a controlled fallback instead of fabricated store information.
 
-### Evidence-Based Answer Validation
+Extractive matching is deliberately conservative and does not constitute full semantic verification.
 
-Generated claims are checked against their referenced knowledge sections before being included in the customer-facing response.
+### Authenticated Order Support
 
-The current validation pipeline includes:
+The order service provides read-only access to structured order records and validates customer ownership before returning information.
 
-- JSON structure validation
-- Source ID validation
-- Extractive evidence matching
-- Automatic citation generation
-- Guardrails against selected unsupported commitments
-- Controlled fallbacks when verification fails
+Supported scenarios include unfulfilled orders, delivered shipments, partial fulfillments, cancelled orders, and recorded refund statuses.
 
-Customer-facing answers are constructed from verified claims rather than directly returning the model's unrestricted answer.
+The backend validates order and shipment quantities to identify inconsistent fulfillment records.
 
-Extractive verification is intentionally conservative. It does not establish full semantic entailment, resolve conflicting policies, or guarantee that every response is complete.
+Order IDs are resolved deterministically when explicitly provided. Ollama tool requests are restricted to an allowlisted read-only operation, and model-supplied customer identities are not trusted.
+
+### Policy-Grounded Cancellation Support
+
+Cancellation questions combine authenticated order facts with verified rules from the store's cancellation policy.
+
+The system distinguishes shipped items from remaining unfulfilled quantities and references the relevant policy sections.
+
+It does not assume that an unfulfilled item is automatically eligible for cancellation. When processing status is unavailable, the assistant explicitly states the limitation.
+
+**Cancellations and refunds are never executed by the assistant.**
+
+### Multi-Turn Order Conversations
+
+The conversation endpoint maintains the most recently verified order reference across requests.
+
+Customers can ask follow-up questions without repeating their order number. Each request revalidates order ownership against the authenticated customer.
+
+Conversation context is customer-scoped, expires after a configurable period, and does not store full chat transcripts or order payloads.
 
 ### Ecommerce Knowledge Base
 
-The initial dataset represents **Northstar Goods**, a fictional outdoor equipment retailer.
+The demonstration store, **Northstar Goods**, is a fictional outdoor equipment retailer.
 
-It includes shipping, returns, refunds, cancellations, product specifications, warranties, and FAQs.
+The knowledge base includes shipping, returns, refunds, cancellations, products, warranties, and FAQs.
 
-All store information is demonstration data.
+Mock order records include multiple customers, fulfillment statuses, shipments, and partial fulfillment scenarios.
 
-### API Endpoints
+All store policies, customers, products, and orders are fictional demonstration data.
 
-**GET `/support/search`**
+## API Endpoints
 
-Returns semantically ranked knowledge sections.
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/health` | API health check |
+| GET | `/support/search` | Semantic knowledge retrieval |
+| POST | `/support/ask` | RAG-based knowledge answers |
+| GET | `/orders/{order_id}` | Authenticated order lookup |
+| POST | `/support/order-ask` | Order-aware and policy-aware support |
+| POST | `/support/order-chat` | Multi-turn order conversations |
 
-Example:
+The three order-specific endpoints are restricted to the local development environment.
 
-```http
-GET /support/search?q=How%20much%20does%20express%20shipping%20cost%3F&top_k=3
-```
+### Knowledge-Based Question
 
 **POST `/support/ask`**
-
-Retrieves supporting context and returns a grounded response.
-
-Request:
 
 ```json
 {
@@ -127,7 +152,7 @@ Request:
 }
 ```
 
-Response:
+Example response:
 
 ```json
 {
@@ -136,20 +161,50 @@ Response:
     {
       "id": "shipping-3",
       "source": "shipping.md",
-      "heading": "Express Shipping",
-      "score": 0.7877
+      "heading": "Express Shipping"
     }
   ]
 }
 ```
 
-Source IDs identify the knowledge sections used to construct the answer. Similarity scores are retrieval metrics, not calibrated factual-confidence probabilities.
+### Order-Aware Question
 
-### Order Query Routing
+**POST `/support/order-ask`**
 
-The API detects selected order-specific questions and prevents the knowledge-only assistant from inventing order status or tracking information.
+Requires a development session token in the `Authorization: Bearer <token>` header.
 
-Order data access is not yet implemented, so these requests return a controlled fallback.
+```json
+{
+  "question": "Can I cancel the remaining item in ORD-1004?"
+}
+```
+
+The response combines authorized order information with cancellation-policy evidence and includes source references. It does not perform any order modification.
+
+### Multi-Turn Conversation
+
+**POST `/support/order-chat`**
+
+Initial request:
+
+```json
+{
+  "question": "Where is ORD-1004?"
+}
+```
+
+The response includes a `conversation_id`.
+
+Follow-up request:
+
+```json
+{
+  "question": "Can I cancel the remaining item?",
+  "conversation_id": "<conversation-id-from-previous-response>"
+}
+```
+
+The backend resolves the stored order reference and rechecks customer ownership before answering.
 
 ## Getting Started
 
@@ -162,8 +217,6 @@ Order data access is not yet implemented, so these requests return a controlled 
 
 ### Installation
 
-Clone the repository:
-
 ```bash
 git clone https://github.com/MausamThakrar/ai-commerce-support-assistant.git
 cd ai-commerce-support-assistant
@@ -174,7 +227,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Install [Ollama](https://ollama.com/download) and download the language model:
+Install [Ollama](https://ollama.com/download) and download the model:
 
 ```bash
 ollama pull qwen3:4b-instruct
@@ -182,18 +235,32 @@ ollama pull qwen3:4b-instruct
 
 Make sure Ollama is running.
 
-Create the environment configuration:
+Create the local configuration:
 
 ```bash
 cp .env.example .env
 ```
 
-Configuration:
+The configuration includes:
 
 ```dotenv
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen3:4b-instruct
+
+APP_ENV=development
+DEMO_SESSION_100=
+DEMO_SESSION_200=
 ```
+
+Generate two separate development session tokens using Python's `secrets` module and add them to `.env`.
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Run the command separately for each customer.
+
+Never commit actual session tokens. The `.env` file is excluded from version control.
 
 ### Run the API
 
@@ -211,51 +278,56 @@ Health endpoint: `http://127.0.0.1:8000/health`
 python -m pytest -v
 ```
 
-The current test suite contains **52 passing tests** covering retrieval, routing, structured generation, citation handling, evidence verification, and selected grounding and error-handling scenarios.
+The current implementation has **154 passing automated tests** covering retrieval, evidence verification, structured output, order ownership, fulfillment consistency, tool validation, authenticated APIs, conversation isolation, expiration, and adversarial scenarios.
 
-The repository also includes a manual real-model evaluation script:
+A manual RAG evaluation script is also available:
 
 ```bash
 python tests/manual_rag_evaluation.py
 ```
 
-It exercises six representative customer questions against the running FastAPI and Ollama services and records response latency.
+It evaluates representative questions against the running local model and API.
 
-## Reliability & Evaluation
+## Reliability & Security
 
-The system is designed to prioritize evidence-based responses over unsupported assertions.
+The implementation incorporates several controls:
 
-Current validation covers malformed model output, invalid source references, missing evidence, selected unsupported refund commitments, and unknown order requests.
+- Source validation and extractive verification for generated knowledge answers.
+- Customer ownership checks for every order lookup.
+- Consistent not-found behavior for unknown and unauthorized orders.
+- Backend validation of tool names and arguments.
+- No model-controlled customer identity or unrestricted order operations.
+- No execution of cancellations, refunds, or other order modifications.
+- Customer-scoped conversation context with expiration.
+- Reauthorization of order references across conversation turns.
+- Development-only restrictions on order-specific endpoints.
 
-Further reliability work focuses on:
+Automated tests also cover selected prompt-injection attempts, malformed tool requests, unauthorized access, and inconsistent order records.
 
-- Multi-turn customer conversations
-- Conflicting and outdated policies
-- Prompt injection and adversarial inputs
-- Customer authorization and order-data isolation
-- Partial fulfillments, cancellations, and refunds
-- Semantic claim verification
-- Large-scale retrieval accuracy and latency
-- Controlled failures and service availability
+These controls demonstrate the local architecture's tested behavior, not a comprehensive production security assessment.
 
-The existing test results demonstrate the implemented behaviors, not production readiness.
+## Scalability & Limitations
 
-## Scalability
+The current knowledge base contains five Markdown documents and 36 indexed sections. Embeddings are stored in memory, and order records are loaded from a local JSON dataset.
 
-The current knowledge base contains five Markdown documents and 36 indexed knowledge sections. Embeddings are held in memory.
+Conversation context is also stored in memory and is not shared across application workers or server restarts.
 
-The retrieval architecture will be evaluated against much larger document collections, including large individual files, with attention to token-aware chunking, persistent indexing, incremental updates, document versioning, and retrieval performance.
+Cancellation-policy validation currently depends on expected rule wording and semantic retrieval of relevant knowledge sections.
+
+Future engineering work includes persistent vector indexing, incremental knowledge updates, versioned policy rules, production authentication, larger-scale retrieval evaluation, and expanded conversational reasoning.
+
+The application is a **local engineering demonstration**, not a production-ready Shopify support integration.
 
 ## Engineering Focus
 
-- Retrieval-Augmented Generation
-- Local LLM inference
-- Semantic search and embeddings
-- Structured output and context engineering
-- Claim-level source traceability
-- Evidence verification and AI guardrails
-- FastAPI backend development
-- Automated testing and real-model evaluation
-- Ecommerce support workflow design
+- Retrieval-Augmented Generation and semantic search
+- Local LLM inference and structured generation
+- Evidence verification and source traceability
+- Controlled tool calling and backend authorization
+- Structured ecommerce order processing
+- Policy-aware response generation
+- Multi-turn conversation context
+- Security boundaries and adversarial testing
+- FastAPI architecture and automated evaluation
 
-The broader objective is a reliable, extensible AI support architecture that can be connected to real ecommerce systems, including Shopify.
+The longer-term goal is to extend the architecture toward real ecommerce integrations, including Shopify, while preserving reliable retrieval, controlled data access, and verifiable customer-facing responses.
