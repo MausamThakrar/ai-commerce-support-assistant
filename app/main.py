@@ -3,10 +3,11 @@ from functools import lru_cache
 
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
+from app.order_api import router as order_router
 
 from app.retrieval import KnowledgeRetriever
 from app.rag import RAGService
-
+from app.order_support_api import router as order_support_router
 
 app = FastAPI(
     title="AI Commerce Support Assistant",
@@ -14,6 +15,8 @@ app = FastAPI(
     description="RAG-powered ecommerce customer support API",
 )
 
+app.include_router(order_router)
+app.include_router(order_support_router)
 
 class SupportQuestion(BaseModel):
     question: str = Field(min_length=1, max_length=2000)

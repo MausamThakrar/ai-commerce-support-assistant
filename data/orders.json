@@ -1,0 +1,155 @@
+
+{
+    "customers": [
+      {
+        "id": "cust-100",
+        "name": "Alex Morgan"
+      },
+      {
+        "id": "cust-200",
+        "name": "Jordan Lee"
+      }
+    ],
+    "orders": [
+      {
+        "id": "ORD-1001",
+        "customer_id": "cust-100",
+        "created_at": "2026-10-10T10:30:00Z",
+        "financial_status": "paid",
+        "fulfillment_status": "unfulfilled",
+        "currency": "EUR",
+        "items": [
+          {
+            "line_id": "line-1",
+            "sku": "NS-BP-028",
+            "title": "Alpine Trail Backpack 28L",
+            "quantity": 1,
+            "fulfilled_quantity": 0,
+            "unit_price": 89.0
+          }
+        ],
+        "fulfillments": [],
+        "cancelled_at": null
+      },
+      {
+        "id": "ORD-1002",
+        "customer_id": "cust-100",
+        "created_at": "2026-10-12T09:15:00Z",
+        "financial_status": "paid",
+        "fulfillment_status": "fulfilled",
+        "currency": "EUR",
+        "items": [
+          {
+            "line_id": "line-1",
+            "sku": "NS-BT-750",
+            "title": "Summit Stainless Steel Bottle",
+            "quantity": 1,
+            "fulfilled_quantity": 1,
+            "unit_price": 29.0
+          }
+        ],
+        "fulfillments": [
+          {
+            "id": "FUL-1002-1",
+            "status": "delivered",
+            "carrier": "DHL",
+            "tracking_number": "DEMO-DHL-1002",
+            "tracking_url": null,
+            "shipped_at": "2026-10-13T11:00:00Z",
+            "delivered_at": "2026-10-16T14:20:00Z",
+            "items": [
+              {
+                "line_id": "line-1",
+                "quantity": 1
+              }
+            ]
+          }
+        ],
+        "cancelled_at": null
+      },
+      {
+        "id": "ORD-1004",
+        "customer_id": "cust-100",
+        "created_at": "2026-10-18T13:45:00Z",
+        "financial_status": "paid",
+        "fulfillment_status": "partial",
+        "currency": "EUR",
+        "items": [
+          {
+            "line_id": "line-1",
+            "sku": "NS-RJ-001",
+            "title": "Ridge Outdoor Rain Jacket",
+            "quantity": 1,
+            "fulfilled_quantity": 1,
+            "unit_price": 119.0
+          },
+          {
+            "line_id": "line-2",
+            "sku": "NS-FA-001",
+            "title": "Trail Essentials First Aid Kit",
+            "quantity": 1,
+            "fulfilled_quantity": 0,
+            "unit_price": 24.0
+          }
+        ],
+        "fulfillments": [
+          {
+            "id": "FUL-1004-1",
+            "status": "in_transit",
+            "carrier": "DHL",
+            "tracking_number": "DEMO-DHL-1004",
+            "tracking_url": null,
+            "shipped_at": "2026-10-20T08:30:00Z",
+            "delivered_at": null,
+            "items": [
+              {
+                "line_id": "line-1",
+                "quantity": 1
+              }
+            ]
+          }
+        ],
+        "cancelled_at": null
+      },
+      {
+        "id": "ORD-2001",
+        "customer_id": "cust-200",
+        "created_at": "2026-10-19T16:10:00Z",
+        "financial_status": "paid",
+        "fulfillment_status": "unfulfilled",
+        "currency": "EUR",
+        "items": [
+          {
+            "line_id": "line-1",
+            "sku": "NS-BP-028",
+            "title": "Alpine Trail Backpack 28L",
+            "quantity": 1,
+            "fulfilled_quantity": 0,
+            "unit_price": 89.0
+          }
+        ],
+        "fulfillments": [],
+        "cancelled_at": null
+      },
+      {
+        "id": "ORD-1005",
+        "customer_id": "cust-100",
+        "created_at": "2026-10-21T12:00:00Z",
+        "financial_status": "refunded",
+        "fulfillment_status": "unfulfilled",
+        "currency": "EUR",
+        "items": [
+          {
+            "line_id": "line-1",
+            "sku": "NS-FA-001",
+            "title": "Trail Essentials First Aid Kit",
+            "quantity": 1,
+            "fulfilled_quantity": 0,
+            "unit_price": 24.0
+          }
+        ],
+        "fulfillments": [],
+        "cancelled_at": "2026-10-21T14:30:00Z"
+      }
+    ]
+  }
